@@ -9,3 +9,5 @@ saved_crypto.txt
 .vscode
 
 Stats/Pie/Single use
+
+__pycache__/
