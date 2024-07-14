@@ -265,7 +265,7 @@ async def view_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # Record function
-RECORD_ACTION, RECORD_TEXT_REPLY, RECORD_TRAVEL_REPLY = range(3)
+RECORD_ACTION, RECORD_TEXT_REPLY, RECORD_TRAVEL_REPLY, RECORD_SUBSCRIPTION_REPLY = range(4)
 async def record(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     red_cross = u"\u274C"
     close_button = [InlineKeyboardButton(f"{red_cross} Close {red_cross}", callback_data="record_close")]
@@ -328,6 +328,13 @@ async def record_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if selected == "travel":
             keyboard = [
                 [InlineKeyboardButton(data, callback_data="record_travel" + data.lower()) for data in ["Currency", "Amount", "Description"]],
+                [back_button, close_button, save_button]
+            ]
+        
+        # Handle keyboard options - Add 'Date' if selected = subscription
+        elif selected == "subscription":
+            keyboard = [
+                [InlineKeyboardButton(data, callback_data="record_subscription" + data.lower()) for data in ["Date", "Amount", "Description"]],
                 [back_button, close_button, save_button]
             ]
 
@@ -422,6 +429,46 @@ async def record_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data["record_currency_message_id"] = message.message_id
 
             return RECORD_TRAVEL_REPLY
+        
+    elif data_type == "record" and selected in ["subscriptiondate", "subscriptionamount", "subscriptiondescription"]: 
+        if selected == 'subscriptiondate':
+            context.user_data['awaiting_subscription_date_reply'] = True
+
+            message = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="*RECORD EXPENSES*\n\nRecurring purchase date in *DD-MM-YYYY* format",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="Markdown"
+            )
+            context.user_data["record_subscription_date_message_id"] = message.message_id
+
+            return RECORD_SUBSCRIPTION_REPLY
+        
+        elif selected == 'subscriptionamount':
+            context.user_data['awaiting_subscription_amount_reply'] = True
+
+            message = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="*RECORD EXPENSES*\n\nHow much is the recurring subscription?",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="Markdown"
+            )
+            context.user_data["record_subscription_amount_message_id"] = message.message_id
+
+            return RECORD_SUBSCRIPTION_REPLY
+        
+        elif selected == 'subscriptiondescription':
+            context.user_data['awaiting_subscription_description_reply'] = True
+
+            message = await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="*RECORD EXPENSES*\n\nWhat is the recurring purchase?",
+                reply_markup=ForceReply(selective=True),
+                parse_mode="Markdown"
+            )
+            context.user_data["record_subscription_desc_message_id"] = message.message_id
+
+            return RECORD_SUBSCRIPTION_REPLY
 
     # Back button handler on month selection
     elif data_type == "record" and selected == "categoryback":
@@ -511,16 +558,272 @@ async def record_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             context.user_data.clear()
             return ConversationHandler.END
+            
+    # Subscription save handler
+    elif data_type == "record" and selected == "subscriptionsave":
+        log_category = context.user_data.get('record_category')
 
-    # Close button handler
-    elif data_type == "record" and selected == "close":
-        # Close the interaction and delete the message
-        await query.message.delete()
+        log_date = context.user_data.get('record_subscription_date')
+        log_amount = context.user_data.get('record_subscription_amount')
+        log_description = context.user_data.get('record_subscription_desc')
 
-        # Clear previous user data
-        context.user_data.clear()
+        if log_date:
+            try:
+                log_date = datetime.strptime(log_date, '%d-%m-%Y')
+            except ValueError:
+                log_date = None
 
-        return ConversationHandler.END
+        entered_amount = log_amount
+        if entered_amount is not None:
+            entered_amount = str(entered_amount)
+            entered_amount = entered_amount[1:] if entered_amount.startswith("-") else entered_amount
+            entered_amount = float(entered_amount)
+            entered_amount = f"{entered_amount:.2f}"  # Ensure 2dp on amount text reply
+
+        money_fly = u'\U0001F4B8'
+        emoji_notes = '\U0001F4DD'
+        emoji_err = " " + '\U0001F6AB' + " "
+        emoji_err_4 = emoji_err * 4
+
+        if not log_date and not log_amount and not log_description:
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text=f"*RECORD EXPENSES*\n\n{emoji_err_4}*ERROR*{emoji_err_4}\nPlease ensure *Date*, *Amount*, and *Description* are filled!",
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+
+        elif not log_date:
+            keyboard = [
+                [InlineKeyboardButton("Date", callback_data="record_subscriptiondate"), InlineKeyboardButton(f"{money_fly} ${entered_amount}", callback_data="record_subscriptionamount"), InlineKeyboardButton(f"{emoji_notes} {log_description}", callback_data="record_subscriptiondescription")],
+                [back_button, close_button, save_button]
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text=f"*RECORD EXPENSES*\n\n{emoji_err_4}*ERROR*{emoji_err_4}\nPlease ensure the *Date* is filled!",
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+
+        elif not log_amount:
+            keyboard = [
+                [InlineKeyboardButton(f"Date: {context.user_data.get('record_subscription_date')}", callback_data="record_subscriptiondate"), InlineKeyboardButton("Amount", callback_data="record_subscriptionamount"), InlineKeyboardButton(f"{emoji_notes} {log_description}", callback_data="record_subscriptiondescription")],
+                [back_button, close_button, save_button]
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text=f"*RECORD EXPENSES*\n\n{emoji_err_4}*ERROR*{emoji_err_4}\nPlease ensure the *Amount* is filled!",
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+
+        elif not log_description:
+            keyboard = [
+                [InlineKeyboardButton(f"Date: {context.user_data.get('record_subscription_date')}", callback_data="record_subscriptiondate"), InlineKeyboardButton(f"{money_fly} ${entered_amount}", callback_data="record_subscriptionamount"), InlineKeyboardButton("Description", callback_data="record_subscriptiondescription")],
+                [back_button, close_button, save_button]
+            ]
+
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                text=f"*RECORD EXPENSES*\n\n{emoji_err_4}*ERROR*{emoji_err_4}\nPlease ensure the *Description* is filled!",
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+
+        else:
+            record_entry(
+                chat_id=chat_id,
+                user_id=user_id,
+                log_cat=log_category,
+                log_amt=log_amount,
+                log_desc=log_description,
+                date=log_date
+            )
+
+            # Schedule recurring log entry
+            job_queue = context.job_queue
+            job_queue.run_repeating(
+                log_recurring_subscription, 
+                interval=timedelta(days=30), 
+                first=log_date + timedelta(days=30),
+                data={
+                    'chat_id': chat_id,
+                    'user_id': user_id,
+                    'category': log_category,
+                    'amount': log_amount,
+                    'description': log_description
+                }
+            )
+
+            record_query_message_id = context.user_data.get('record_query_message_id')
+            await context.bot.delete_message(
+                chat_id=chat_id,
+                message_id=record_query_message_id
+            )
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=text_format(update, context),
+                parse_mode="Markdown",
+                reply_markup=ReplyKeyboardRemove()
+            )
+
+            context.user_data.clear()
+            return ConversationHandler.END
+
+    
+
+# Record subscription reply handler
+async def handle_record_subscription_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Keyboard options
+    red_cross = u"\u274C"
+    close_button = InlineKeyboardButton(f"{red_cross} Close {red_cross}", callback_data="record_close")
+    back_button = InlineKeyboardButton("« Back", callback_data="record_categoryback")
+    save_button = InlineKeyboardButton("Save", callback_data="record_subscriptionsave")
+    second_row = [back_button, close_button, save_button]
+
+    # Text formatting resources
+    category_selected = context.user_data.get('record_category')
+    money_fly = u'\U0001F4B8'
+    emoji_notes = u'\U0001F4DD'
+
+    text = f"*RECORD EXPENSES*\n\nCategory selected: *{category_selected.capitalize()}*\n"
+
+    original_message_id = context.user_data.get('record_query_message_id')
+    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
+
+    # Get await status
+    await_subscription_date_reply = context.user_data.get('awaiting_subscription_date_reply')
+    await_subscription_amount_reply = context.user_data.get('awaiting_subscription_amount_reply')
+    await_subscription_description_reply = context.user_data.get('awaiting_subscription_description_reply')
+
+    # Handle user replies for date, amount, and description buttons
+    if await_subscription_date_reply:
+        date_text = update.message.text
+        context.user_data['record_subscription_date'] = date_text
+
+    elif await_subscription_amount_reply:
+        amount_text = update.message.text
+        context.user_data['record_subscription_amount'] = float(amount_text)
+
+    elif await_subscription_description_reply:
+        desc_text = update.message.text
+        context.user_data['record_subscription_desc'] = desc_text
+
+    # Add the second row of buttons
+    keyboard = []
+
+    entered_date = context.user_data.get('record_subscription_date')
+    entered_amount = context.user_data.get('record_subscription_amount')
+    entered_description = context.user_data.get('record_subscription_desc')
+
+    # Build the keyboard with the entered values if available
+    date_button_text = f"{entered_date}" if entered_date else "Date"
+    amount_button_text = f"${entered_amount:.2f}" if entered_amount else "Amount"
+    description_button_text = f"{entered_description}" if entered_description else "Description"
+
+    date_button = InlineKeyboardButton(date_button_text, callback_data="record_subscriptiondate")
+    amount_button = InlineKeyboardButton(amount_button_text, callback_data="record_subscriptionamount")
+    description_button = InlineKeyboardButton(description_button_text, callback_data="record_subscriptiondescription")
+
+    keyboard.append([date_button, amount_button, description_button])
+    keyboard.append(second_row)
+
+    if entered_date:
+        text += f"Recurring on *{entered_date}*\n"
+    if entered_amount:
+        text += f"Amount: *${entered_amount:.2f}*\n"
+    if entered_description:
+        text += f"Description: *{entered_description}*\n"
+
+    if original_message_id:
+        if await_subscription_date_reply:
+            message_id = context.user_data.get('record_subscription_date_message_id')
+            context.user_data['awaiting_subscription_date_reply'] = False # Reset flag
+        
+        elif await_subscription_amount_reply:
+            message_id = context.user_data.get('record_subscription_amount_message_id')
+            context.user_data['awaiting_subscription_amount_reply'] = False # Reset flag
+
+        elif await_subscription_description_reply:
+            message_id = context.user_data.get('record_subscription_desc_message_id')
+            context.user_data['awaiting_subscription_description_reply'] = False # Reset flag
+
+        await context.bot.delete_message(
+            chat_id=chat_id,
+            message_id=message_id
+        )
+
+        # Delete input message
+        await update.message.delete()
+
+        text += "\n\nClick *Save* to record the expense"
+        await context.bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=original_message_id,
+            text=text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+
+async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
+    job = context.job
+    job_data = job.data
+    chat_id = job_data['chat_id']
+    user_id = job_data['user_id']
+    category = job_data['category']
+    amount = job_data['amount']
+    description = job_data['description']
+    log_date = datetime.now()
+
+    record_entry(chat_id, user_id, category, -amount, description, log_date)
+
+
+async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    job_queue = context.job_queue
+    active_jobs = job_queue.jobs()
+    
+    if not active_jobs:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="You have no active subscriptions."
+        )
+        return
+
+    message_text = "*Active Subscriptions:*\n\n"
+    
+    for job in active_jobs:
+        job_data = job.data
+        if job.name == "schedulecryptomessage":
+            continue
+        
+        if job_data:  # Ensure job_data is not None
+            next_run_time = job.next_t.strftime('%Y-%m-%d %H:%M:%S')  # Format next run time
+            subscription_info = (
+                f"Category: {job_data.get('category', 'N/A')}\n"
+                f"Amount: ${job_data.get('amount', 0.00):.2f}\n"
+                f"Description: {job_data.get('description', 'N/A')}\n"
+                f"Next Trigger: {next_run_time}\n\n"
+            )
+            message_text += subscription_info
+        else:
+            next_run_time = job.next_t.strftime('%Y-%m-%d %H:%M:%S')  # Format next run time
+            message_text += (
+                f"Job ID: {job.name}\n"
+                f"Next Trigger: {next_run_time}\n"
+                f"Job data is missing.\n\n"
+            )
+    
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=message_text,
+        parse_mode="Markdown"
+    )
 
 
 # Record button reply handlers
@@ -657,6 +960,7 @@ async def handle_record_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
 
 
+# Record travel reply handler
 async def handle_record_travel_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Keyboard options
     red_cross = u"\u274C"

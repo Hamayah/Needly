@@ -25,6 +25,7 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help))
     application.add_handler(CommandHandler("monthly", monthly))
     application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(CommandHandler("subscriptions", send_active_subscriptions))
 
     ############################ Callback Query Handlers ############################
     application.add_handler(CommandHandler("view", view))
@@ -41,13 +42,14 @@ def main() -> None:
 
     ############################ Conversation Handlers ############################
     """RECORDING EXPENSES"""
-    RECORD_ACTION, RECORD_TEXT_REPLY, RECORD_TRAVEL_REPLY = range(3)
+    RECORD_ACTION, RECORD_TEXT_REPLY, RECORD_TRAVEL_REPLY, RECORD_SUBSCRIPTION_REPLY = range(4)
     conv_handler_record = ConversationHandler(
         entry_points=[CommandHandler('record', record)],
         states={
             RECORD_ACTION: [CallbackQueryHandler(record_button, pattern='^record_')],
             RECORD_TEXT_REPLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_record_reply)],
-            RECORD_TRAVEL_REPLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_record_travel_reply)]
+            RECORD_TRAVEL_REPLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_record_travel_reply)],
+            RECORD_SUBSCRIPTION_REPLY: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_record_subscription_reply)]
         },
         fallbacks=[CallbackQueryHandler(record_button, pattern='^record_')],
         per_chat=True
