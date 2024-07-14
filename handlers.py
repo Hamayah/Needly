@@ -633,11 +633,11 @@ async def record_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
-            record_entry(
+            log_entry(
                 chat_id=chat_id,
                 user_id=user_id,
                 log_cat=log_category,
-                log_amt=log_amount,
+                log_amt=-log_amount,
                 log_desc=log_description,
                 date=log_date
             )
@@ -780,7 +780,7 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
     description = job_data['description']
     log_date = datetime.now()
 
-    record_entry(chat_id, user_id, category, -amount, description, log_date)
+    log_entry(chat_id, user_id, category, -amount, description, log_date)
 
 
 async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -801,7 +801,7 @@ async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAUL
         job_data = job.data
         if job.name == "schedulecryptomessage":
             continue
-        
+
         if job_data:  # Ensure job_data is not None
             next_run_time = job.next_t.strftime('%Y-%m-%d %H:%M:%S')  # Format next run time
             subscription_info = (

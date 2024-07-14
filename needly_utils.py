@@ -40,54 +40,6 @@ def log_entry(chat_id: int, user_id: int, log_cat: str, log_amt: float, log_desc
 
     return log
 
-def record_entry(chat_id: int, user_id: int, log_cat: str, log_amt: float, log_desc: str, date: datetime) -> Needly:
-    chat, _ = Chat.get_or_create(chat_id=chat_id)
-    user, _ = User.get_or_create(user_id=user_id)
-
-    log = Needly.create(chat=chat, user=user, log_cat=log_cat.upper(), log_amt=log_amt,
-                        log_desc=log_desc, date=date)
-
-    reset_needly_display_order() # Reset the display order after deleting a record
-
-    return log
-
-""" # Entries
-entries = [
-    ("SHOPPING", -314.92, "HYROX", "01 July 2024"),
-    ("GROCERIES", -1.40, "Pringle", "01 July 2024"),
-    ("SUBSCRIPTIONS", -28.08, "ChatGPT", "02 July 2024"),
-    ("TRANSPORT", -12.20, "Gojek", "04 July 2024"),
-    ("LEISURE", -89.00, "Golf", "04 July 2024"),
-    ("SHOPPING", -55.00, "Golf balls", "04 July 2024"),
-    ("TRANSPORT", -17.56, "Ryde", "04 July 2024"),
-    ("FOOD", -7.60, "Yew Kee", "06 July 2024"),
-    ("SHOPPING", -4.22, "Golf tee", "06 July 2024"),
-    ("FOOD", -1.90, "Zi Char", "06 July 2024"),
-    ("LEISURE", -5.00, "Shoe rental", "07 July 2024"),
-    ("TRANSPORT", -18.80, "Grab", "07 July 2024"),
-    ("DRINK", -10.00, "Playmade", "07 July 2024"),
-    ("FOOD", -39.45, "Tun Xiang Hokkien Delights", "07 July 2024"),
-    ("TRANSPORT", -15.40, "Gojek", "09 July 2024"),
-    ("TRANSPORT", -8.80, "Gojek", "09 July 2024"),
-    ("SHOPPING", -5.78, "Golf Tees", "10 July 2024"),
-    ("FOOD", -11.20, "GYG", "10 July 2024"),
-    ("FOOD", -3.75, "Mcflurry", "10 July 2024"),
-    ("FOOD", -5.75, "Hom Aroy", "11 July 2024"),
-    ("SHOPPING", -12.00, "Steam", "13 July 2024"),
-    ("FOOD", -4.75, "Banana", "13 July 2024"),
-    ("FOOD", -5.00, "Doritos", "13 July 2024"),
-    ("FOOD", -32.40, "TFF", "13 July 2024"),
-    ("LEISURE", -50.00, "PC Pro fee", "13 July 2024"),
-    ("LEISURE", -10.10, "SG Pools", "14 July 2024"),
-    ("SUBSCRIPTION", -5.98, "Spotify", "14 July 2024")
-]
-
-# Log each entry
-for log_cat, log_amt, log_desc, date_str in entries:
-    date = datetime.strptime(date_str, "%d %B %Y")
-    print('logging log_desc:', log_desc, 'date:', date)
-    log_entry(227383722, 227383722, log_cat, log_amt, log_desc, date) """
-
 
 def delete_entry_db(del_id: int) -> tuple:
     delete = Needly.delete().where(Needly.display_id==del_id).execute()
