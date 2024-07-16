@@ -35,7 +35,7 @@ def log_entry(chat_id, user_id, log_cat, log_amt, log_desc, date):
     needly_entry = Needly.create(
         chat=Chat.get(Chat.chat_id == chat_id),
         user=User.get(User.user_id == user_id),
-        log_cat=log_cat,
+        log_cat=log_cat.upper(),
         log_amt=log_amt,
         log_desc=log_desc,
         date=date

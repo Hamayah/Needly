@@ -1198,6 +1198,7 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
     category = job_entry.category
     amount = job_entry.amount
     description = job_entry.description
+    interval_days = job_entry.interval_days
     log_date = datetime.now(pytz.utc).astimezone(
         SGT)  # Convert to Singapore time
 
@@ -1205,7 +1206,7 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
     log = log_entry(chat_id, user_id, category, amount, description, log_date)
 
     # Update the next run date
-    next_run_date = log_date + timedelta(seconds=30)
+    next_run_date = log_date + timedelta(days=interval_days)
     job_entry.next_run = next_run_date
     job_entry.needly_entry = log  # Update the needly_entry link
     job_entry.save()
@@ -1215,7 +1216,7 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
 
     job_queue.run_repeating(
         log_recurring_subscription,
-        interval=timedelta(seconds=30),
+        interval=timedelta(days=interval_days),
         first=next_run_date,
         data={
             'job_id': job_id,
@@ -1248,6 +1249,7 @@ async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAUL
     message_text = "*Active Subscriptions:*\n\n"
     counter = 1
     keyboard = []
+    total_amount = 0
 
     for job in active_jobs:
         job_data = job.data
@@ -1255,6 +1257,7 @@ async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAUL
             continue
 
         if job_data:  # Ensure job_data is not None
+            print(job_data)
             next_run_time = job.next_t.strftime('%d-%B-%y %I.%M%p')
             # Remove leading zero from the hour part
             next_run_time = next_run_time.replace(' 0', ' ')
