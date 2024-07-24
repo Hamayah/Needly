@@ -1144,6 +1144,7 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
             'user_id': user_id,
             'category': 'SUBSCRIPTIONS',
             'amount': log_amount,
+            'duration': duration,
             'description': log_description
         }
     )
@@ -1155,6 +1156,7 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
         user_id=user_id,
         category='SUBSCRIPTIONS',
         amount=log_amount,
+        interval_days=duration,
         description=log_description,
         next_run=next_run_date
     )
@@ -1224,6 +1226,7 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
             'user_id': user_id,
             'category': category,
             'amount': amount,
+            'duration': interval_days,
             'description': description
         }
     )
@@ -1258,7 +1261,7 @@ async def send_active_subscriptions(update: Update, context: ContextTypes.DEFAUL
 
         if job_data:  # Ensure job_data is not None
             print(job_data)
-            next_run_time = job.next_t.strftime('%d-%B-%y %I.%M%p')
+            next_run_time = job.next_t.strftime('%d-%B-%y')  # %I.%M%p')
             # Remove leading zero from the hour part
             next_run_time = next_run_time.replace(' 0', ' ')
             subscription_info = (
@@ -1766,7 +1769,7 @@ async def delete_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             # Send success message
             await context.bot.send_message(
                 chat_id=chat_id,
-                text=f"*DELETE ENTRY*\n\nYou have successfully deleted\n*[ID {delete_id}]* {log_desc}: {log_amt} *({log_cat})*",
+                text=f"*DELETE ENTRY*\n\nYou have successfully deleted\n*[ID {delete_id}]* {log_desc}: {log_amt:.2f} *({log_cat})*",
                 parse_mode="Markdown",
                 reply_markup=ReplyKeyboardRemove()
             )
@@ -1820,7 +1823,7 @@ async def handle_delete_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
             context.user_data['log_amt'] = log_amt
             context.user_data['log_cat'] = log_cat
 
-            text = f"You are about to delete: \n*[ID {entered_id}]* {log_desc}: {log_amt} *({log_cat})*\n\nClick *Save* to confirm"
+            text = f"You are about to delete: \n*[ID {entered_id}]* {log_desc}: {log_amt:.2f} *({log_cat})*\n\nClick *Save* to confirm"
             keyboard = [
                 [InlineKeyboardButton(entered_id, callback_data="delete_ID")],
                 [close_button, save_button]
