@@ -1746,7 +1746,7 @@ async def delete_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             )
         else:
             # Delete entry from database
-            delete_entry_db(delete_id)
+            delete_entry_db(delete_id, user_id)
 
             # Get the initial message ID
             delete_initial_message_id = context.user_data.get(
