@@ -11,6 +11,7 @@ import locale
 import asyncio
 import subprocess
 import calendar
+import re
 
 
 ## Command Handlers ##
@@ -655,14 +656,21 @@ async def handle_record_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
     # Waiting for amount reply
     if await_amount_reply:
         entered_amount = update.message.text
-        log_amount = format(float(entered_amount), ".2f")
+        # Check if the entered amount contains any arithmetic operators
+        if re.search(r'[\+\-\*/]', entered_amount):
+            sanitized_input = entered_amount.replace(
+                ' ', '')  # Remove any spaces
+            result = eval(sanitized_input)
+        else:
+            result = float(entered_amount)
 
-        # Format amount to 2dp for database, always expensed as negative
-        if float(entered_amount) < 0:  # If user input negative amount
-            log_amount = float(log_amount)
-            entered_amount = entered_amount[1:]
-        else:  # If user input positive amount
-            log_amount = -float(log_amount)
+        log_amount = format(float(result), ".2f")
+
+        # Always store the amount as a negative value in the database
+        log_amount = -abs(float(log_amount))
+
+        # Display the entered amount without negative signs
+        display_amount = format(abs(float(result)), ".2f")
 
         context.user_data['record_amount'] = log_amount
         context.user_data['awaiting_amount_reply'] = False  # Reset flag
@@ -670,23 +678,21 @@ async def handle_record_reply(update: Update, context: ContextTypes.DEFAULT_TYPE
         original_message_id = context.user_data.get('record_query_message_id')
         chat_id = update.effective_chat.id
 
-        # Check if description has been entered
-        entered_amount = float(entered_amount)  # Convert to float
         # Ensure 2dp on amount text reply
-        entered_amount = f"{entered_amount:.2f}"
+        entered_amount = f"{result:.2f}"
         entered_description = context.user_data.get('record_description')
 
         if entered_description:  # Have description input
-            text += f"You spent *${entered_amount}* on *{entered_description}*"
+            text += f"You spent *${display_amount}* on *{entered_description}*"
             keyboard = [
-                [InlineKeyboardButton(f"{money_fly} ${entered_amount}", callback_data="record_amount"), InlineKeyboardButton(
+                [InlineKeyboardButton(f"{money_fly} ${display_amount}", callback_data="record_amount"), InlineKeyboardButton(
                     f"{emoji_notes} {entered_description}", callback_data="record_description")]
             ]
 
         else:  # No description input
-            text += f"You spent *${entered_amount}*"
+            text += f"You spent *${display_amount}*"
             keyboard = [
-                [InlineKeyboardButton(f"{money_fly} ${entered_amount}", callback_data="record_amount"), InlineKeyboardButton(
+                [InlineKeyboardButton(f"{money_fly} ${display_amount}", callback_data="record_amount"), InlineKeyboardButton(
                     "Description", callback_data="record_description")]
             ]
 
@@ -833,14 +839,22 @@ async def handle_record_travel_reply(update: Update, context: ContextTypes.DEFAU
 
     elif await_amount_reply:
         entered_amount = update.message.text
-        log_amount = format(float(entered_amount), ".2f")
+        # Check if the entered amount contains any arithmetic operators
+        if re.search(r'[\+\-\*/]', entered_amount):
+            sanitized_input = entered_amount.replace(
+                ' ', '')  # Remove any spaces
+            result = eval(sanitized_input)
+        else:
+            result = float(entered_amount)
 
-        # Format amount to 2dp for database, always expensed as negative
-        if float(entered_amount) < 0:  # If user input negative amount
-            log_amount = float(log_amount)
-            entered_amount = entered_amount[1:]
-        else:  # If user input positive amount
-            log_amount = -float(log_amount)
+        log_amount = format(float(result), ".2f")
+
+        # Always store the amount as a negative value in the database
+        log_amount = -abs(float(log_amount))
+
+        # Display the entered amount without negative signs
+        display_amount = format(abs(float(result)), ".2f")
+
         context.user_data['record_amount'] = log_amount
 
         entered_description = context.user_data.get('record_description')
@@ -849,7 +863,7 @@ async def handle_record_travel_reply(update: Update, context: ContextTypes.DEFAU
         currency_to_sgd = context.user_data.get('currency_pair')
         forex_data = context.user_data.get('exchange_rate')
         forex_amount = forex_data.split(" = ")[-1][:-1]
-        entered_amount = float(forex_amount) * float(entered_amount)
+        entered_amount = float(forex_amount) * float(result)
         entered_amount = f"{entered_amount:.2f}"
 
         context.user_data['conversion_amount'] = entered_amount
@@ -863,19 +877,19 @@ async def handle_record_travel_reply(update: Update, context: ContextTypes.DEFAU
                 [
                     currency_button,
                     InlineKeyboardButton(
-                        f"{money_fly} ${entered_amount}", callback_data="record_travelamount"),
+                        f"{money_fly} ${display_amount}", callback_data="record_travelamount"),
                     InlineKeyboardButton(
                         f"{emoji_notes} {entered_description}", callback_data="record_traveldescription")
                 ]
             ]
 
         else:
-            text += f"You spent *${entered_amount}*"
+            text += f"You spent *${display_amount}*"
             keyboard = [
                 [
                     currency_button,
                     InlineKeyboardButton(
-                        f"{money_fly} ${entered_amount}", callback_data="record_travelamount"),
+                        f"{money_fly} ${display_amount}", callback_data="record_travelamount"),
                     InlineKeyboardButton(
                         "Description", callback_data="record_traveldescription")
                 ]
