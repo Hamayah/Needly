@@ -1227,6 +1227,13 @@ async def log_recurring_subscription(context: ContextTypes.DEFAULT_TYPE):
     job_entry.needly_entry = log  # Update the needly_entry link
     job_entry.save()
 
+    await context.bot.send_message(
+        chat_id=chat_id,
+        user_id=user_id,
+        text=f"*SUBSCRIPTION*\n\n*Description:* {description}\n*Amount:* ${abs(amount):.2f}\n*Next Deduction:* {next_run_date.strftime('%d-%B-%y %I.%M %p')}",
+        parse_mode="Markdown"
+    )
+
     job_queue = context.job_queue
     job.schedule_removal()  # Remove the old job
 
