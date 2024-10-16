@@ -129,10 +129,12 @@ async def monthly(update: Update, context: CallbackContext) -> None:
 def text_format(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> str:
     chat_id = update.effective_chat.id
     user_id = update.effective_user.id
+    current_month = datetime.now().month
+    current_year = datetime.now().year
     year_dict = dict_months(chat_id=chat_id, user_id=user_id)
-    month_dict = year_dict[datetime.now().year]
+    month_dict = year_dict.get(current_year, {})
     month = datetime.now().month
-    date_dict = month_dict[month]
+    date_dict = month_dict.get(current_month, {})
 
     money_fly = u"\U0001F4B8"
     daily_total = 0.0
@@ -145,6 +147,19 @@ def text_format(update: Update, context: ContextTypes.DEFAULT_TYPE, *args) -> st
         date_string = date.strftime('%d-%m-%Y')
         date_string = date_string.split("-")
         text = f"*{date_string[0]} {parse_month(int(date_string[1]))} Expenses*\n"
+
+    # Check if the specified month exists in the month_dict, otherwise use the current month
+    month = date.month  # Get the month from the date argument
+    month_dict = year_dict.get(current_year, {})
+
+    # If the month is not present in the dictionary, fall back to the current month
+    if month not in month_dict:
+        print(
+            f"Month {month} not found in month_dict, defaulting to current month.")
+        month = current_month
+        date_dict = month_dict.get(current_month, {})
+    else:
+        date_dict = month_dict[month]
 
     # Check if the day key exists in the date_dict
     if date.day in date_dict:
@@ -514,7 +529,7 @@ async def record_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             message = await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="*RECORD EXPENSES*\n\nEnter the duration in *days* for the subscription:",
+                text="*RECORD EXPENSES*\n\nEnter the recurring duration for the subscription (e.g., '1 month', '2 weeks', '14 days'):",
                 reply_markup=ForceReply(selective=True),
                 parse_mode="Markdown"
             )
@@ -1030,8 +1045,17 @@ async def handle_record_subscription_reply(update: Update, context: ContextTypes
         context.user_data['record_subscription_desc'] = desc_text
 
     elif await_subscription_duration_reply:
-        duration_text = update.message.text
-        context.user_data['record_subscription_duration'] = int(duration_text)
+        duration_input = update.message.text
+        duration_timedelta = convert_to_timedelta(duration_input)
+
+        if duration_timedelta is None:
+            await update.message.reply_text(
+                text="Invalid duration format. Please use formats like '1 month', '2 weeks', or '14 days'."
+            )
+
+        else:
+            # Store the duration in days (or whatever format you prefer)
+            context.user_data['record_subscription_duration'] = duration_timedelta.days
 
     # Add the second row of buttons
     keyboard = []
@@ -1193,6 +1217,27 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
     context.user_data.clear()
 
     return ConversationHandler.END
+
+
+def convert_to_timedelta(duration_str):
+    # This function takes the duration input and converts it to a `timedelta` object
+    match = re.match(r"(\d+\.?\d*)\s*(month|week|day)s?",
+                     duration_str.strip().lower())
+    if not match:
+        return None  # Invalid input
+
+    value, unit = float(match.group(1)), match.group(2)
+
+    if unit == 'month':
+        # Approximate each month as 30 days for timedelta
+        days = int(value * 30)
+        return timedelta(days=days)
+    elif unit == 'week':
+        return timedelta(weeks=value)
+    elif unit == 'day':
+        return timedelta(days=value)
+
+    return None  # Fallback in case of an unexpected input
 
 
 # Log recurring subscription
