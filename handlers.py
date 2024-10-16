@@ -1,7 +1,9 @@
+from numpy import isin
 from telegram import *
 from telegram.ext import *
 from telegram_bot_pagination import InlineKeyboardPaginator
 from datetime import datetime, time, timedelta
+from dateutil.relativedelta import relativedelta
 from needly_utils import *
 from constants import *
 from piechart import create_pie_chart
@@ -1055,7 +1057,7 @@ async def handle_record_subscription_reply(update: Update, context: ContextTypes
 
         else:
             # Store the duration in days (or whatever format you prefer)
-            context.user_data['record_subscription_duration'] = duration_timedelta.days
+            context.user_data['record_subscription_duration'] = duration_timedelta
 
     # Add the second row of buttons
     keyboard = []
@@ -1069,7 +1071,7 @@ async def handle_record_subscription_reply(update: Update, context: ContextTypes
     date_button_text = f"{entered_date}" if entered_date else "Date"
     amount_button_text = f"${entered_amount:.2f}" if entered_amount else "Amount"
     description_button_text = f"{entered_description}" if entered_description else "Description"
-    duration_button_text = f"{entered_duration} days" if entered_duration else "Duration"
+    duration_button_text = f"{duration_input}" if entered_duration else "Duration"
 
     date_button = InlineKeyboardButton(
         date_button_text, callback_data="record_subscriptiondate")
@@ -1091,7 +1093,7 @@ async def handle_record_subscription_reply(update: Update, context: ContextTypes
     if entered_description:
         text += f"Description: *{entered_description}*\n"
     if entered_duration:
-        text += f"Duration: *{entered_duration} days*\n"
+        text += f"Duration: *{duration_input}*\n"
 
     if original_message_id:
         if await_subscription_date_reply:
@@ -1145,9 +1147,9 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
     log_date = context.user_data.get('record_subscription_date')
     log_amount = context.user_data.get('record_subscription_amount')
     log_description = context.user_data.get('record_subscription_desc')
-    # Default to 30 days if not specified
-    duration = context.user_data.get('record_subscription_duration', 30)
+    duration = context.user_data.get('record_subscription_duration')
 
+    # Check if all required details are filled
     if not log_date or not log_amount or not log_description or not duration:
         await query.answer("Please fill in all the details before saving.")
         return
@@ -1155,6 +1157,7 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
     log_date = datetime.strptime(log_date, '%d-%m-%Y')
     log_amount = float(log_amount)
 
+    # Negate the amount for expenses
     if log_amount > 0:
         log_amount = -log_amount
 
@@ -1164,25 +1167,35 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
     else:
         log_date = log_date.astimezone(SGT)
 
-    # Log the initial entry and get the created Needly entry
+    # Log the initial subscription entry
     needly_entry = log_entry(chat_id=chat_id, user_id=user_id, log_cat='SUBSCRIPTIONS',
                              log_amt=log_amount, log_desc=log_description, date=log_date)
 
+    # Determine the next run date based on the type of duration (relativedelta or timedelta)
+    if isinstance(duration, relativedelta):
+        next_run_date = log_date + duration  # For months
+    elif isinstance(duration, timedelta):
+        next_run_date = log_date + duration  # For days or weeks
+    else:
+        # Fallback if duration is an integer (assume days)
+        next_run_date = log_date + timedelta(days=duration)
+
     # Schedule the recurring job
     job_queue = context.job_queue
-    next_run_date = log_date + timedelta(days=duration)
+    interval_days = duration.days if isinstance(
+        duration, timedelta) else 30  # Default 30 for months
 
     job = job_queue.run_repeating(
         log_recurring_subscription,
-        interval=timedelta(days=duration),
+        interval=timedelta(days=interval_days),  # Use the interval in days
         first=next_run_date,
         data={
-            'job_id': None,  # This will be updated after the Job is created
+            'job_id': None,  # Will be updated later with job_id
             'chat_id': chat_id,
             'user_id': user_id,
             'category': 'SUBSCRIPTIONS',
             'amount': log_amount,
-            'duration': duration,
+            'duration': duration,  # Store the original duration
             'description': log_description
         }
     )
@@ -1194,7 +1207,7 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
         user_id=user_id,
         category='SUBSCRIPTIONS',
         amount=log_amount,
-        interval_days=duration,
+        interval_days=interval_days,  # Save the interval in days
         description=log_description,
         next_run=next_run_date
     )
@@ -1202,6 +1215,7 @@ async def handle_subscription_save(update: Update, context: ContextTypes.DEFAULT
     # Update the job data with the job_id
     job.data['job_id'] = job_entry.id
 
+    # Notify the user
     await query.answer("Subscription saved and recurring job scheduled.")
     await query.message.delete()
 
@@ -1229,9 +1243,8 @@ def convert_to_timedelta(duration_str):
     value, unit = float(match.group(1)), match.group(2)
 
     if unit == 'month':
-        # Approximate each month as 30 days for timedelta
-        days = int(value * 30)
-        return timedelta(days=days)
+        # Use relativedelta for months to account for varying month lengths
+        return relativedelta(months=int(value))
     elif unit == 'week':
         return timedelta(weeks=value)
     elif unit == 'day':
